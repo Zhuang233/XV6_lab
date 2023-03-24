@@ -681,3 +681,8 @@ procdump(void)
     printf("\n");
   }
 }
+
+//个人增加系统调用
+int getcpuid(){
+  return cpuid();
+}

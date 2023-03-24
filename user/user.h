@@ -22,6 +22,9 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+//个人新增系统调用
+int getcpuid(void);
+
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -89,3 +89,8 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+//个人增加系统调用
+int sys_getcpuid(){
+  return getcpuid();
+}
