@@ -291,7 +291,7 @@ static inline uint64
 r_sp()
 {
   uint64 x;
-  asm volatile("mv %0, sp" : "=r" (x) );
+  asm volatile("mv %0, sp"  : "=r" (x) );
   return x;
 }
 
