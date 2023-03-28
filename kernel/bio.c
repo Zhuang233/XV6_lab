@@ -40,6 +40,7 @@ binit(void)
 
   initlock(&bcache.lock, "bcache");
 
+  // 构造一个闭环的双向缓冲区链表
   // Create linked list of buffers
   bcache.head.prev = &bcache.head;
   bcache.head.next = &bcache.head;

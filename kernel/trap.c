@@ -26,6 +26,7 @@ trapinit(void)
 void
 trapinithart(void)
 {
+  // 设置异常处理程序入口地址，使内核定期收到中断后能够执行kernelvec内核中断处理函数
   w_stvec((uint64)kernelvec);
 }
 

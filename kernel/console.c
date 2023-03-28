@@ -178,6 +178,7 @@ consoleintr(int c)
   release(&cons.lock);
 }
 
+//初始化控制台
 void
 consoleinit(void)
 {
@@ -185,6 +186,7 @@ consoleinit(void)
 
   uartinit();
 
+  // 绑定控制台的读写函数
   // connect read and write system calls
   // to consoleread and consolewrite.
   devsw[CONSOLE].read = consoleread;

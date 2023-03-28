@@ -20,19 +20,23 @@ extern void timervec();
 void
 start()
 {
+  //在寄存器mstatus中把上一次的特权模式设置为特权者模式
   // set M Previous Privilege mode to Supervisor, for mret.
   unsigned long x = r_mstatus();
   x &= ~MSTATUS_MPP_MASK;
   x |= MSTATUS_MPP_S;
   w_mstatus(x);
 
+  //把main的地址写入寄存器mepc中，把返回地址设置为main函数的地址
   // set M Exception Program Counter to main, for mret.
   // requires gcc -mcmodel=medany
   w_mepc((uint64)main);
 
+  //在特权者模式中把0写入页表寄存器satp中，禁用虚拟地址转换,禁用分页
   // disable paging for now.
   w_satp(0);
 
+  //把所有中断和异常委托给特权者模式
   // delegate all interrupts and exceptions to supervisor mode.
   w_medeleg(0xffff);
   w_mideleg(0xffff);
@@ -43,6 +47,7 @@ start()
   w_pmpaddr0(0x3fffffffffffffull);
   w_pmpcfg0(0xf);
 
+  // 初始化定时器中断
   // ask for clock interrupts.
   timerinit();
 
@@ -50,6 +55,7 @@ start()
   int id = r_mhartid();
   w_tp(id);
 
+  //调用mret"返回"到监督者模式
   // switch to supervisor mode and jump to main().
   asm volatile("mret");
 }
@@ -62,6 +68,7 @@ start()
 void
 timerinit()
 {
+  // 每个cpu 都有一个独立的定时器中断源
   // each CPU has a separate source of timer interrupts.
   int id = r_mhartid();
 

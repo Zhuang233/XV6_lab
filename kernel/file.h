@@ -6,7 +6,7 @@ struct file {
   struct pipe *pipe; // FD_PIPE
   struct inode *ip;  // FD_INODE and FD_DEVICE
   uint off;          // FD_INODE
-  short major;       // FD_DEVICE
+  short major;       // FD_DEVICE 文件映射的设备号
 };
 
 #define major(dev)  ((dev) >> 16 & 0xFFFF)
@@ -28,7 +28,7 @@ struct inode {
   uint size;
   uint addrs[NDIRECT+1];
 };
-
+// 设备驱动程序注册表
 // map major device number to device functions.
 struct devsw {
   int (*read)(int, uint64, int);

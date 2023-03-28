@@ -1,5 +1,6 @@
 #include "types.h"
 
+// 内存填充
 void*
 memset(void *dst, int c, uint n)
 {

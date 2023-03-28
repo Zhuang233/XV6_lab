@@ -20,9 +20,9 @@ struct run {
 
 struct {
   struct spinlock lock;
-  struct run *freelist;
+  struct run *freelist; //空闲内存链表
 } kmem;
-
+//内核初始化（将内核的物理内存页清空，加入空闲内存列表）
 void
 kinit()
 {
@@ -30,6 +30,7 @@ kinit()
   freerange(end, (void*)PHYSTOP);
 }
 
+//free掉start到end间的物理页
 void
 freerange(void *pa_start, void *pa_end)
 {
@@ -51,32 +52,35 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  // 填充垃圾数据
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
+  //头插法将该页加入空闲链表
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
 }
 
+// 申请一个内存页（内核使用）
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
-void *
-kalloc(void)
+void *kalloc(void)
 {
   struct run *r;
 
   acquire(&kmem.lock);
+  // 从空闲内存链表头部取一块出来使用
   r = kmem.freelist;
   if(r)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
   if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
+    memset((char*)r, 5, PGSIZE); // fill with junk 填充垃圾 （安全措施）
   return (void*)r;
 }

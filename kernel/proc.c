@@ -12,8 +12,8 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
-int nextpid = 1;
-struct spinlock pid_lock;
+int nextpid = 1; //新进程号
+struct spinlock pid_lock;//进程号资源锁（保护nextpid）
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
@@ -26,6 +26,7 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+// 申请NPROC个内核栈，这里是64个
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -43,21 +44,26 @@ proc_mapstacks(pagetable_t kpgtbl)
   }
 }
 
+// PCB表初始化
 // initialize the proc table.
 void
 procinit(void)
 {
   struct proc *p;
   
+  //初始化两个全局的锁
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
+
   for(p = proc; p < &proc[NPROC]; p++) {
+      //初始化进程锁
       initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
+      p->state = UNUSED;//所有进程刚开始的状态均为未使用（还没创建该进程）
+      p->kstack = KSTACK((int) (p - proc));//内核栈位置（之前内核初始化时已经为每个进程申请了一个内核栈）
   }
 }
 
+// 获取当前cpu号
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
 // to a different CPU.
@@ -68,6 +74,7 @@ cpuid()
   return id;
 }
 
+//获取当前cpu指针
 // Return this CPU's cpu struct.
 // Interrupts must be disabled.
 struct cpu*
@@ -78,6 +85,7 @@ mycpu(void)
   return c;
 }
 
+// 获取当前进程指针
 // Return the current struct proc *, or zero if none.
 struct proc*
 myproc(void)
@@ -116,30 +124,38 @@ allocproc(void)
     if(p->state == UNUSED) {
       goto found;
     } else {
+      //已经被用了，还锁
       release(&p->lock);
     }
   }
   return 0;
 
 found:
+
+  //申请pid
   p->pid = allocpid();
   p->state = USED;
 
+  // 申请跳板页
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+    //申请失败，释放之前申请的资源
     freeproc(p);
     release(&p->lock);
     return 0;
   }
 
+  //申请用户页
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
+    //申请失败，释放之前申请的资源
     freeproc(p);
     release(&p->lock);
     return 0;
   }
 
+  // 申请上下文信息
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -228,6 +244,7 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
+// 第一个进程
 // Set up first user process.
 void
 userinit(void)
@@ -274,6 +291,7 @@ growproc(int n)
   return 0;
 }
 
+// 新建子进程
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -283,6 +301,7 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
+  // 申请进程空间（PCB）
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;

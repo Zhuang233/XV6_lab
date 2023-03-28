@@ -11,7 +11,8 @@
             "miDebuggerServerAddress": "127.0.0.1:25000", //gdb启动的监听端口 见.gdbinit 中 target remote xxxx:xx
             "miDebuggerPath": "/usr/bin/gdb-multiarch", // arm平台的gdb路径
             "MIMode": "gdb",
-            "preLaunchTask": "xv6build" //先编译并进行调试
+            "preLaunchTask": "xv6build", //先编译并进行调试
+            "externalConsole":true
         }
     ]
 }

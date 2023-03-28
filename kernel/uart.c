@@ -49,12 +49,15 @@ extern volatile int panicked; // from printf.c
 
 void uartstart();
 
+//串口初始化
 void
 uartinit(void)
 {
+  // 关中断
   // disable interrupts.
   WriteReg(IER, 0x00);
 
+  // 设置波特率为38.4k
   // special mode to set baud rate.
   WriteReg(LCR, LCR_BAUD_LATCH);
 
@@ -71,6 +74,7 @@ uartinit(void)
   // reset and enable FIFOs.
   WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
 
+  // 开发送接收中断
   // enable transmit and receive interrupts.
   WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
 

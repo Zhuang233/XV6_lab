@@ -9,12 +9,14 @@
 /*
  * the kernel's page table.
  */
+// 内核页表
 pagetable_t kernel_pagetable;
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+// 为内核创建页表，并写入外设直接映射的地址
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -49,6 +51,7 @@ kvmmake(void)
   return kpgtbl;
 }
 
+// 初始化内核页表
 // Initialize the one kernel_pagetable
 void
 kvminit(void)
@@ -56,6 +59,7 @@ kvminit(void)
   kernel_pagetable = kvmmake();
 }
 
+// 开启内核页表
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
 void
@@ -64,12 +68,14 @@ kvminithart()
   // wait for any previous writes to the page table memory to finish.
   sfence_vma();
 
+  //写satp寄存器，让cpu知道内核页表的首地址在哪
   w_satp(MAKE_SATP(kernel_pagetable));
 
   // flush stale entries from the TLB.
   sfence_vma();
 }
 
+// 逐层往下找，返回va对应的页表项，alloc决定未找到页表项时是否生成新页表项
 // Return the address of the PTE in page table pagetable
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page-table pages.
@@ -90,15 +96,21 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
+    // 查看页表项是否有效
     if(*pte & PTE_V) {
+      //指向下一层的页表首地址
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
+      //为还没生成的页表项分配下一层的页表
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
       memset(pagetable, 0, PGSIZE);
       *pte = PA2PTE(pagetable) | PTE_V;
     }
   }
+  //经过上面循环两次，pagetable为最后一层的页表
+
+  //返回最终找到的页表项
   return &pagetable[PX(0, va)];
 }
 
@@ -135,6 +147,7 @@ kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
+// 往pagetable连续新增若干个个由虚拟地址va映射到物理地址pa的页表项，perm为页表各权限
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
@@ -143,7 +156,7 @@ int
 mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 {
   uint64 a, last;
-  pte_t *pte;
+  pte_t *pte; //页表项64bit
 
   if(size == 0)
     panic("mappages: size");
@@ -155,6 +168,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
+    //将物理地址加上控制位写入页表项
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
