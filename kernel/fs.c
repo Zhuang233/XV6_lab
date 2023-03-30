@@ -26,6 +26,7 @@
 // only one device
 struct superblock sb; 
 
+// 将磁盘中的超级块载入内存
 // Read the super block.
 static void
 readsb(int dev, struct superblock *sb)
@@ -40,12 +41,14 @@ readsb(int dev, struct superblock *sb)
 // Init fs
 void
 fsinit(int dev) {
+  // 获取superblock中的魔数，检验是否是合法的文件系统，合法就用superblock初始化日志
   readsb(dev, &sb);
   if(sb.magic != FSMAGIC)
     panic("invalid file system");
   initlog(dev, &sb);
 }
 
+// 磁盘块写0
 // Zero a block.
 static void
 bzero(int dev, int bno)
@@ -60,6 +63,7 @@ bzero(int dev, int bno)
 
 // Blocks.
 
+// 申请一块磁盘块，返回块号
 // Allocate a zeroed disk block.
 // returns 0 if out of disk space.
 static uint
@@ -69,16 +73,18 @@ balloc(uint dev)
   struct buf *bp;
 
   bp = 0;
+  // 遍历bitmap所有block
   for(b = 0; b < sb.size; b += BPB){
-    bp = bread(dev, BBLOCK(b, sb));
+    bp = bread(dev, BBLOCK(b, sb));// 取出bitmap中的一块
+    // 遍历块中的所有bit
     for(bi = 0; bi < BPB && b + bi < sb.size; bi++){
-      m = 1 << (bi % 8);
-      if((bp->data[bi/8] & m) == 0){  // Is block free?
-        bp->data[bi/8] |= m;  // Mark block in use.
+      m = 1 << (bi % 8);// 当前bit在字节中的位置
+      if((bp->data[bi/8] & m) == 0){  // Is block free? 空闲块
+        bp->data[bi/8] |= m;  // Mark block in use. 该位置1,标记已使用
         log_write(bp);
         brelse(bp);
-        bzero(dev, b + bi);
-        return b + bi;
+        bzero(dev, b + bi);// 新申请到的磁盘块填0
+        return b + bi; // 返回块号
       }
     }
     brelse(bp);
@@ -87,6 +93,7 @@ balloc(uint dev)
   return 0;
 }
 
+// 释放磁盘块
 // Free a disk block.
 static void
 bfree(int dev, uint b)
@@ -175,7 +182,7 @@ bfree(int dev, uint b)
 
 struct {
   struct spinlock lock;
-  struct inode inode[NINODE];
+  struct inode inode[NINODE];// 内存中活跃的inode,需要时才从磁盘调一个inode出来
 } itable;
 
 void
@@ -191,6 +198,7 @@ iinit()
 
 static struct inode* iget(uint dev, uint inum);
 
+// 申请一块inode,在磁盘和内存都进行处理,返回内存中的inode
 // Allocate an inode on device dev.
 // Mark it as allocated by  giving it type type.
 // Returns an unlocked but allocated and referenced inode,
@@ -201,14 +209,14 @@ ialloc(uint dev, short type)
   int inum;
   struct buf *bp;
   struct dinode *dip;
-
+  // 遍历所有磁盘inode
   for(inum = 1; inum < sb.ninodes; inum++){
     bp = bread(dev, IBLOCK(inum, sb));
     dip = (struct dinode*)bp->data + inum%IPB;
-    if(dip->type == 0){  // a free inode
-      memset(dip, 0, sizeof(*dip));
-      dip->type = type;
-      log_write(bp);   // mark it allocated on the disk
+    if(dip->type == 0){  // a free inode 找到未使用的inode
+      memset(dip, 0, sizeof(*dip)); //0填充
+      dip->type = type; // mark it allocated on the disk
+      log_write(bp);
       brelse(bp);
       return iget(dev, inum);
     }
@@ -218,6 +226,7 @@ ialloc(uint dev, short type)
   return 0;
 }
 
+// 用内存中的inode更新在磁盘中对应的inode
 // Copy a modified in-memory inode to disk.
 // Must be called after every change to an ip->xxx field
 // that lives on disk.
@@ -240,6 +249,7 @@ iupdate(struct inode *ip)
   brelse(bp);
 }
 
+// 从磁盘读取inode,返回在内存中对应的inode副本
 // Find the inode with number inum on device dev
 // and return the in-memory copy. Does not lock
 // the inode and does not read it from disk.
@@ -276,6 +286,7 @@ iget(uint dev, uint inum)
   return ip;
 }
 
+// 为inode增加一个引用
 // Increment reference count for ip.
 // Returns ip to enable ip = idup(ip1) idiom.
 struct inode*
@@ -287,6 +298,7 @@ idup(struct inode *ip)
   return ip;
 }
 
+// 给inode上锁
 // Lock the given inode.
 // Reads the inode from disk if necessary.
 void
@@ -316,6 +328,7 @@ ilock(struct inode *ip)
   }
 }
 
+// 解锁inode
 // Unlock the given inode.
 void
 iunlock(struct inode *ip)
@@ -420,6 +433,7 @@ bmap(struct inode *ip, uint bn)
   panic("bmap: out of range");
 }
 
+// 释放inode所有直接和间接磁盘块
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
 void
@@ -429,6 +443,7 @@ itrunc(struct inode *ip)
   struct buf *bp;
   uint *a;
 
+  //释放inode所有直接磁盘块
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
       bfree(ip->dev, ip->addrs[i]);
@@ -439,11 +454,13 @@ itrunc(struct inode *ip)
   if(ip->addrs[NDIRECT]){
     bp = bread(ip->dev, ip->addrs[NDIRECT]);
     a = (uint*)bp->data;
+    // 释放inode所有间接磁盘块所指的块
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
         bfree(ip->dev, a[j]);
     }
     brelse(bp);
+    // 释放间接磁盘块本身
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
@@ -464,6 +481,7 @@ stati(struct inode *ip, struct stat *st)
   st->size = ip->size;
 }
 
+// 读inode对应的文件数据
 // Read data from inode.
 // Caller must hold ip->lock.
 // If user_dst==1, then dst is a user virtual address;
@@ -495,6 +513,7 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   return tot;
 }
 
+// 写inode对应的文件数据
 // Write data to inode.
 // Caller must hold ip->lock.
 // If user_src==1, then src is a user virtual address;
@@ -546,6 +565,9 @@ namecmp(const char *s, const char *t)
   return strncmp(s, t, DIRSIZ);
 }
 
+// 在 inode 为 dp 表示的目录中搜索给定的名字 name，
+// 如果找到了就返回 iget 获取到的目标 inode，
+// 并把 poff 置为目标条目在 dp 目录中的偏移（byte）
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
 struct inode*
@@ -574,6 +596,7 @@ dirlookup(struct inode *dp, char *name, uint *poff)
   return 0;
 }
 
+// 往目录 dp 里写一个新的条目（name，inum）
 // Write a new directory entry (name, inum) into the directory dp.
 // Returns 0 on success, -1 on failure (e.g. out of disk blocks).
 int

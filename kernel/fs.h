@@ -15,7 +15,7 @@ struct superblock {
   uint magic;        // Must be FSMAGIC
   uint size;         // Size of file system image (blocks)
   uint nblocks;      // Number of data blocks
-  uint ninodes;      // Number of inodes.
+  uint ninodes;      // Number of inodes. 磁盘inode数量
   uint nlog;         // Number of log blocks
   uint logstart;     // Block number of first log block
   uint inodestart;   // Block number of first inode block
@@ -28,6 +28,7 @@ struct superblock {
 #define NINDIRECT (BSIZE / sizeof(uint))
 #define MAXFILE (NDIRECT + NINDIRECT)
 
+// 磁盘i节点
 // On-disk inode structure
 struct dinode {
   short type;           // File type
@@ -47,6 +48,7 @@ struct dinode {
 // Bitmap bits per block
 #define BPB           (BSIZE*8)
 
+// 得到b内存块在bitmap中的对应字节的地址
 // Block of free map containing bit for block b
 #define BBLOCK(b, sb) ((b)/BPB + sb.bmapstart)
 

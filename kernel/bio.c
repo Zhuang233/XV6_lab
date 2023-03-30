@@ -33,6 +33,7 @@ struct {
   struct buf head;
 } bcache;
 
+// 缓冲区初始化
 void
 binit(void)
 {
@@ -63,6 +64,7 @@ bget(uint dev, uint blockno)
 
   acquire(&bcache.lock);
 
+  // 查缓冲区，命中直接返回
   // Is the block already cached?
   for(b = bcache.head.next; b != &bcache.head; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
@@ -72,14 +74,15 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
-
+  // 没命中申请一块空闲的缓冲区返回
   // Not cached.
   // Recycle the least recently used (LRU) unused buffer.
+  // 根据LRU原则，向后扫描
   for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
     if(b->refcnt == 0) {
       b->dev = dev;
       b->blockno = blockno;
-      b->valid = 0;
+      b->valid = 0; //标志缓冲区数据为无效数据
       b->refcnt = 1;
       release(&bcache.lock);
       acquiresleep(&b->lock);
@@ -89,6 +92,7 @@ bget(uint dev, uint blockno)
   panic("bget: no buffers");
 }
 
+// 从磁盘读数据到缓冲区，返回该缓冲区
 // Return a locked buf with the contents of the indicated block.
 struct buf*
 bread(uint dev, uint blockno)
@@ -103,6 +107,7 @@ bread(uint dev, uint blockno)
   return b;
 }
 
+// 将缓冲区回写到磁盘
 // Write b's contents to disk.  Must be locked.
 void
 bwrite(struct buf *b)
@@ -112,6 +117,7 @@ bwrite(struct buf *b)
   virtio_disk_rw(b, 1);
 }
 
+// 释放缓冲区
 // Release a locked buffer.
 // Move to the head of the most-recently-used list.
 void
@@ -126,6 +132,7 @@ brelse(struct buf *b)
   b->refcnt--;
   if (b->refcnt == 0) {
     // no one is waiting for it.
+    // 把该缓冲区从链中拔下来插到头部（便于下次需要申请时快速找到）
     b->next->prev = b->prev;
     b->prev->next = b->next;
     b->next = bcache.head.next;
@@ -137,6 +144,7 @@ brelse(struct buf *b)
   release(&bcache.lock);
 }
 
+// 增加一个缓冲区索引
 void
 bpin(struct buf *b) {
   acquire(&bcache.lock);
@@ -144,6 +152,7 @@ bpin(struct buf *b) {
   release(&bcache.lock);
 }
 
+// 撤销一个缓冲区索引
 void
 bunpin(struct buf *b) {
   acquire(&bcache.lock);

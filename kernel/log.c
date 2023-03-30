@@ -33,8 +33,8 @@
 // Contents of the header block, used for both the on-disk header block
 // and to keep track in memory of logged block# before commit.
 struct logheader {
-  int n;
-  int block[LOGSIZE];
+  int n; //当前日志块数
+  int block[LOGSIZE]; // 预写入磁盘的缓冲区号
 };
 
 struct log {
@@ -51,6 +51,7 @@ struct log log;
 static void recover_from_log(void);
 static void commit();
 
+// 从超级块中获取日志块信息对日志块初始化
 void
 initlog(int dev, struct superblock *sb)
 {
@@ -64,6 +65,7 @@ initlog(int dev, struct superblock *sb)
   recover_from_log();
 }
 
+// 将数据从磁盘的日志区转移到最终目的地
 // Copy committed blocks from log to their home location
 static void
 install_trans(int recovering)
@@ -74,7 +76,7 @@ install_trans(int recovering)
     struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
     struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
     memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
-    bwrite(dbuf);  // write dst to disk
+    bwrite(dbuf);  // write dst to disk 到这里数据到达真正到达磁盘的最终目的地
     if(recovering == 0)
       bunpin(dbuf);
     brelse(lbuf);
@@ -82,6 +84,7 @@ install_trans(int recovering)
   }
 }
 
+// 从磁盘读取log到内存中的log结构体
 // Read the log header from disk into the in-memory log header
 static void
 read_head(void)
@@ -96,6 +99,7 @@ read_head(void)
   brelse(buf);
 }
 
+// 将日志从磁盘读出，用内存中的日志更新，然后重新写回磁盘
 // Write in-memory log header to disk.
 // This is the true point at which the
 // current transaction commits.
@@ -122,12 +126,14 @@ recover_from_log(void)
   write_head(); // clear the log
 }
 
+// 文件系统调用开头处理操作，睡眠，伺机而动
 // called at the start of each FS system call.
 void
 begin_op(void)
 {
   acquire(&log.lock);
   while(1){
+    // 上一次commit还没结束或者日志满了先去睡一会儿
     if(log.committing){
       sleep(&log, &log.lock);
     } else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
@@ -141,6 +147,7 @@ begin_op(void)
   }
 }
 
+// 文件系统调用末尾处理操作，看情况决定是否真正写入磁盘
 // called at the end of each FS system call.
 // commits if this was the last outstanding operation.
 void
@@ -150,9 +157,9 @@ end_op(void)
 
   acquire(&log.lock);
   log.outstanding -= 1;
-  if(log.committing)
+  if(log.committing) //检查上次commit是否结束
     panic("log.committing");
-  if(log.outstanding == 0){
+  if(log.outstanding == 0){ //文件系统调用数为0，该将缓冲区一起commit进磁盘了
     do_commit = 1;
     log.committing = 1;
   } else {
@@ -174,6 +181,7 @@ end_op(void)
   }
 }
 
+// 将已准备写入磁盘的缓冲区数据，写进磁盘的日志区
 // Copy modified blocks from cache to log.
 static void
 write_log(void)
@@ -194,14 +202,15 @@ static void
 commit()
 {
   if (log.lh.n > 0) {
-    write_log();     // Write modified blocks from cache to log
-    write_head();    // Write header to disk -- the real commit
-    install_trans(0); // Now install writes to home locations
+    write_log();     // Write modified blocks from cache to log 将已准备写入磁盘的缓冲区数据，写进磁盘的日志区
+    write_head();    // Write header to disk -- the real commit 用内存中日志更新磁盘中的日志
+    install_trans(0); // Now install writes to home locations 将数据从磁盘的日志区转移到最终目的地
     log.lh.n = 0;
     write_head();    // Erase the transaction from the log
   }
 }
 
+// 将缓冲区号写进日志，以准备写入磁盘
 // Caller has modified b->data and is done with the buffer.
 // Record the block number and pin in the cache by increasing refcnt.
 // commit()/write_log() will do the disk write.
@@ -222,14 +231,16 @@ log_write(struct buf *b)
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 
+// 找到该缓冲区对应的日志
   for (i = 0; i < log.lh.n; i++) {
     if (log.lh.block[i] == b->blockno)   // log absorption
       break;
   }
-  log.lh.block[i] = b->blockno;
-  if (i == log.lh.n) {  // Add new block to log?
-    bpin(b);
-    log.lh.n++;
+
+  log.lh.block[i] = b->blockno;// 如果没找到i恰好为数组末尾，自动写进日志
+  if (i == log.lh.n) {  // Add new block to log? 
+    bpin(b); // 增加一个缓冲区索引
+    log.lh.n++;// 日志加一
   }
   release(&log.lock);
 }
