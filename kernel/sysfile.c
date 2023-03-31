@@ -119,6 +119,7 @@ sys_fstat(void)
   return filestat(f, st);
 }
 
+// 在new的父目录下新建一个new目录项 作为old的硬链接
 // Create the path new as a link to the same inode as old.
 uint64
 sys_link(void)
@@ -126,30 +127,38 @@ sys_link(void)
   char name[DIRSIZ], new[MAXPATH], old[MAXPATH];
   struct inode *dp, *ip;
 
+  // 读取参数并检验
   if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
     return -1;
 
   begin_op();
+  // 获取old的inode
   if((ip = namei(old)) == 0){
     end_op();
     return -1;
   }
 
   ilock(ip);
+  // old的inode类型错误
   if(ip->type == T_DIR){
     iunlockput(ip);
     end_op();
     return -1;
   }
 
+  // 增加old的引用
   ip->nlink++;
   iupdate(ip);
   iunlock(ip);
 
+  // dp为new父目录
   if((dp = nameiparent(new, name)) == 0)
     goto bad;
   ilock(dp);
+
+  // 在new的父目录下创建以new为名的目录项，该目录项和old共享同一个inode
   if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
+    // 设备号不一致或链接失败
     iunlockput(dp);
     goto bad;
   }
@@ -161,6 +170,7 @@ sys_link(void)
   return 0;
 
 bad:
+  // 出现意外，撤销操作
   ilock(ip);
   ip->nlink--;
   iupdate(ip);
@@ -242,6 +252,7 @@ bad:
   return -1;
 }
 
+// 创建文件或目录，返回inode
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
@@ -253,35 +264,42 @@ create(char *path, short type, short major, short minor)
 
   ilock(dp);
 
+  // 查找目标文件
   if((ip = dirlookup(dp, name, 0)) != 0){
     iunlockput(dp);
     ilock(ip);
+    // 已经存在，返回找到的inode
     if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
       return ip;
     iunlockput(ip);
     return 0;
   }
 
+  // 尚不存在，新建inode
   if((ip = ialloc(dp->dev, type)) == 0){
     iunlockput(dp);
     return 0;
   }
 
+  // inode初始化
   ilock(ip);
   ip->major = major;
   ip->minor = minor;
   ip->nlink = 1;
   iupdate(ip);
 
+  // 类型为目录，就创建当前目录和父目录的目录项
   if(type == T_DIR){  // Create . and .. entries.
     // No ip->nlink++ for ".": avoid cyclic ref count.
     if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
       goto fail;
   }
 
+  // 在父目录写入新创建的inode的目录项
   if(dirlink(dp, name, ip->inum) < 0)
     goto fail;
 
+  // 父目录链接数加一
   if(type == T_DIR){
     // now that success is guaranteed:
     dp->nlink++;  // for ".."
@@ -289,10 +307,11 @@ create(char *path, short type, short major, short minor)
   }
 
   iunlockput(dp);
-
+  // 返回创建完毕的inode
   return ip;
 
  fail:
+  // 出错，撤销
   // something went wrong. de-allocate ip.
   ip->nlink = 0;
   iupdate(ip);
@@ -370,6 +389,7 @@ sys_open(void)
   return fd;
 }
 
+// 创建目录
 uint64
 sys_mkdir(void)
 {

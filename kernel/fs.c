@@ -339,6 +339,7 @@ iunlock(struct inode *ip)
   releasesleep(&ip->lock);
 }
 
+// 减少inode的引用
 // Drop a reference to an in-memory inode.
 // If that was the last reference, the inode table entry can
 // be recycled.
@@ -389,6 +390,7 @@ iunlockput(struct inode *ip)
 // are listed in ip->addrs[].  The next NINDIRECT blocks are
 // listed in block ip->addrs[NDIRECT].
 
+// 返回inode关联的第n块的磁盘地址
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
 // returns 0 if out of disk space.
@@ -630,6 +632,7 @@ dirlink(struct inode *dp, char *name, uint inum)
 
 // Paths
 
+// 将path指针移向下一个元素返回，name存放被跳过的目录名
 // Copy the next path element from path into name.
 // Return a pointer to the element following the copied one.
 // The returned path has no leading slashes,
@@ -667,6 +670,7 @@ skipelem(char *path, char *name)
   return path;
 }
 
+// 以path查找目录或文件的inode
 // Look up and return the inode for a path name.
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
@@ -681,17 +685,23 @@ namex(char *path, int nameiparent, char *name)
   else
     ip = idup(myproc()->cwd);
 
+  // 遍历路径中所有元素
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
+    // 当前inode类型不是文件夹，查找不到，返回
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
     }
+
+    // 找到父节点，返回当前的inode
     if(nameiparent && *path == '\0'){
       // Stop one level early.
       iunlock(ip);
       return ip;
     }
+
+    // 当前目录找不到下一级的name，直接返回
     if((next = dirlookup(ip, name, 0)) == 0){
       iunlockput(ip);
       return 0;
@@ -699,13 +709,17 @@ namex(char *path, int nameiparent, char *name)
     iunlockput(ip);
     ip = next;
   }
+
+  // 没在上面的循环中找到父节点，返回0
   if(nameiparent){
     iput(ip);
     return 0;
   }
+  // 返回最后一个元素对应的节点
   return ip;
 }
 
+// 返回相应路径名对应的inode
 struct inode*
 namei(char *path)
 {
@@ -713,6 +727,7 @@ namei(char *path)
   return namex(path, 0, name);
 }
 
+// 返回相应inode的父目录inode，并将最后一个元素复制到name中
 struct inode*
 nameiparent(char *path, char *name)
 {

@@ -33,7 +33,7 @@
 // Contents of the header block, used for both the on-disk header block
 // and to keep track in memory of logged block# before commit.
 struct logheader {
-  int n; //当前日志块数
+  int n; // 当前事务待写缓冲区数
   int block[LOGSIZE]; // 预写入磁盘的缓冲区号
 };
 
@@ -41,7 +41,7 @@ struct log {
   struct spinlock lock;
   int start;
   int size;
-  int outstanding; // how many FS sys calls are executing.
+  int outstanding; // how many FS sys calls are executing.待提交系统调用的数量
   int committing;  // in commit(), please wait.
   int dev;
   struct logheader lh;
@@ -240,7 +240,7 @@ log_write(struct buf *b)
   log.lh.block[i] = b->blockno;// 如果没找到i恰好为数组末尾，自动写进日志
   if (i == log.lh.n) {  // Add new block to log? 
     bpin(b); // 增加一个缓冲区索引
-    log.lh.n++;// 日志加一
+    log.lh.n++;// 事务中的缓存数加一
   }
   release(&log.lock);
 }
