@@ -135,7 +135,7 @@ UPROGS=\
 	$U/_zombie\
 	\
 	$U/_my_app\
-	# $U/_cpuid\
+	$U/_cpuid\
 	# 个人增加应用
 
 fs.img: mkfs/mkfs README $(UPROGS)

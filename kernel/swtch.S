@@ -5,6 +5,7 @@
 # Save current registers in old. Load from new.	
 
 
+# 进程切换函数, 保存上一个进程的寄存器状态，加载下一个进程寄存器状态
 .globl swtch
 swtch:
         sd ra, 0(a0)

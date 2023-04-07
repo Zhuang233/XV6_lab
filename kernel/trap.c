@@ -30,7 +30,7 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
-//
+// 处理来自用户的系统调用，中断，异常
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
@@ -42,6 +42,7 @@ usertrap(void)
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
+  // 内核中又发生的trap将由`kernelvec`处理
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
   w_stvec((uint64)kernelvec);
@@ -61,14 +62,17 @@ usertrap(void)
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
 
+    // 中断号，pc中断寄存器，中断状态寄存器都已经用过了，于是可以重新使能中断了
     // an interrupt will change sepc, scause, and sstatus,
     // so enable only now that we're done with those registers.
+    // 重新使能中断
     intr_on();
 
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
+    // 前面都不是，则为异常，杀死进程
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);
@@ -77,6 +81,7 @@ usertrap(void)
   if(killed(p))
     exit(-1);
 
+  // 让出cpu,安排调度
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
@@ -97,10 +102,12 @@ usertrapret(void)
   // we're back in user space, where usertrap() is correct.
   intr_off();
 
+  // 将中断入口改回来
   // send syscalls, interrupts, and exceptions to uservec in trampoline.S
   uint64 trampoline_uservec = TRAMPOLINE + (uservec - trampoline);
   w_stvec(trampoline_uservec);
 
+  // 保存内核栈指针，cpuid, 内核页表，用户陷入入口，为下一次陷入做准备
   // set up trapframe values that uservec will need when
   // the process next traps into the kernel.
   p->trapframe->kernel_satp = r_satp();         // kernel page table
@@ -111,15 +118,18 @@ usertrapret(void)
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
   
+  // 更改cpu状态为用户态
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
+  // 设置返回的pc
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
-
+  
+  // 设置用户页表，跳转到trampline切换页表并返回用户程序
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 

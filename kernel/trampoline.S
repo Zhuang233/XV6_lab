@@ -99,6 +99,7 @@ uservec:
 
 .globl userret
 userret:
+        # 切换为用户态页表，恢复寄存器，返回用户程序
         # userret(pagetable)
         # called by usertrapret() in trap.c to
         # switch from kernel to user.

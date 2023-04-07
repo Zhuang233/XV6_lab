@@ -132,6 +132,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_getcpuid] sys_getcpuid,
 };
 
+// 根据中断号调用具体系统调用
 void
 syscall(void)
 {

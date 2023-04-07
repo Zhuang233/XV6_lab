@@ -145,7 +145,7 @@ found:
     return 0;
   }
 
-  //申请用户页
+  //申请用户页表
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -517,6 +517,7 @@ sched(void)
   mycpu()->intena = intena;
 }
 
+// 让出cpu,安排调度
 // Give up the CPU for one scheduling round.
 void
 yield(void)
