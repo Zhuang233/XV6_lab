@@ -62,10 +62,10 @@ usertrap(void)
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
 
-    // 中断号，pc中断寄存器，中断状态寄存器都已经用过了，于是可以重新使能中断了
+    // 中断号，pc中断寄存器，中断状态寄存器都已经用过了，度过了窗口期，于是可以重新使能中断了
     // an interrupt will change sepc, scause, and sstatus,
     // so enable only now that we're done with those registers.
-    // 重新使能中断
+    // 重新使能中断 (riscv在trap后自动关闭中断)
     intr_on();
 
     syscall();
@@ -155,16 +155,19 @@ kerneltrap()
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
+  // 处理外设中断
   if((which_dev = devintr()) == 0){
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
   }
 
+  // 时钟中断，安排调度，让出cpu
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
     yield();
 
+  // yield可能会把sepc和sstatus改了，所以在这恢复一下
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
@@ -180,6 +183,7 @@ clockintr()
   release(&tickslock);
 }
 
+// 1外设中断，2时钟中断，0未知
 // check if it's an external interrupt or software interrupt,
 // and handle it.
 // returns 2 if timer interrupt,

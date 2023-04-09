@@ -114,6 +114,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   return &pagetable[PX(0, va)];
 }
 
+// va+用户页表 找到物理地址 （检查了是否满足用户权限，来自用户的访问必须通过这里实现以保证安全）
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
@@ -359,7 +360,7 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
-// 在内核态中显式调用用户页表 帮进程进行内存搬运
+// 在内核态中显式调用用户页表 帮进程进行内存搬运(通过walkaddr获取的pa保证不从非用户空间乱搬内存出来)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -410,6 +411,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
   return 0;
 }
 
+// 从va+用户页表 复制字符串(以空字符为结尾) 到内核栈的dst
 // Copy a null-terminated string from user to kernel.
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.

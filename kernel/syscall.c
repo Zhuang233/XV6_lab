@@ -19,6 +19,7 @@ fetchaddr(uint64 addr, uint64 *ip)
   return 0;
 }
 
+// 以va结合用户页表获取字符串
 // Fetch the nul-terminated string at addr from the current process.
 // Returns length of string, not including nul, or -1 for error.
 int
@@ -30,6 +31,7 @@ fetchstr(uint64 addr, char *buf, int max)
   return strlen(buf);
 }
 
+// 获取保存在trapframe中的第n个寄存器
 static uint64
 argraw(int n)
 {
@@ -52,6 +54,7 @@ argraw(int n)
   return -1;
 }
 
+// 获取保存在trapframe中的第n个寄存器作为int型
 // Fetch the nth 32-bit system call argument.
 void
 argint(int n, int *ip)
@@ -59,6 +62,7 @@ argint(int n, int *ip)
   *ip = argraw(n);
 }
 
+// 获取保存在trapframe中的第n个寄存器作为指针
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
@@ -68,6 +72,7 @@ argaddr(int n, uint64 *ip)
   *ip = argraw(n);
 }
 
+// 用保存在trapframe中的第n个寄存器间接寻址，配合用户页表获取字符串
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.
 // Returns string length if OK (including nul), -1 if error.
