@@ -1,7 +1,8 @@
-        #
+        # 内核处理trap,又发生的异常或外部中断，跳转到此处
         # interrupts and exceptions while in supervisor
         # mode come here.
         #
+        # 保存寄存器到当前内核栈，调用kerneltrap，处理完返回内核
         # the current stack is a kernel stack.
         # push all registers, call kerneltrap().
         # when kerneltrap() returns, restore registers, return.

@@ -67,10 +67,12 @@ uartinit(void)
   // MSB for baud rate of 38.4K.
   WriteReg(1, 0x00);
 
+  // 无奇偶校验，设置字长为8位（好像有问题，跟手册不太一样）
   // leave set-baud mode,
   // and set word length to 8 bits, no parity.
   WriteReg(LCR, LCR_EIGHT_BITS);
 
+  // 使能FIFO
   // reset and enable FIFOs.
   WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
 
