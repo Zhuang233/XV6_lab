@@ -15,7 +15,7 @@ main()
     printfinit();
     printf("\n");
     printf("xv6 kernel is booting\n");
-    printf("\n");
+    printf("My student no is 052010420\n");
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
