@@ -20,5 +20,3 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
-//个人增加系统调用
-#define SYS_getcpuid 22
