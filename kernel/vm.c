@@ -35,16 +35,20 @@ kvmmake(void)
   // PLIC
   kvmmap(kpgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
+  // 内核代码段
   // map kernel text executable and read-only.
   kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
 
+  // 内核数据段
   // map kernel data and the physical RAM we'll make use of.
   kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
 
+  // 跳板代码块
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
+  // 内核栈
   // allocate and map a kernel stack for each process.
   proc_mapstacks(kpgtbl);
   
@@ -235,6 +239,7 @@ uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
   memmove(mem, src, sz);
 }
 
+// 调整进程占用内存大小
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64

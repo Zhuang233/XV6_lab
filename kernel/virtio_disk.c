@@ -278,7 +278,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   __sync_synchronize();
 
-  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
+  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number 向地址 VIRTIO_MMIO_QUEUE_NOTIFY 写入了值 0，通知虚拟硬盘设备处理一个请求
 
   // Wait for virtio_disk_intr() to say request has finished.
   while(b->disk == 1) {
